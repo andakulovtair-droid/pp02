@@ -1,54 +1,19 @@
 import json
 
-# some JSON:
-x =  '{ "name":"John", "age":30, "city":"New York"}'
+json_string = '{"name": "Ali", "age": 20}'
+data = json.loads(json_string)
+print("1) Age:", data["age"])
 
-# parse x:
-y = json.loads(x)
 
-# the result is a Python dictionary:
-print(y["age"]) 
-
-import json
-
-# a Python object (dict):
-x = {
-  "name": "John",
-  "age": 30,
-  "city": "New York"
+python_dict = {
+    "city": "Almaty",
+    "country": "Kazakhstan"
 }
+json_data = json.dumps(python_dict)
+print("2) JSON:", json_data)
 
-# convert into JSON:
-y = json.dumps(x)
 
-# the result is a JSON string:
-print(y) 
-
-import json
-
-print(json.dumps({"name": "John", "age": 30}))
-print(json.dumps(["apple", "bananas"]))
-print(json.dumps(("apple", "bananas")))
-print(json.dumps("hello"))
-print(json.dumps(42))
-print(json.dumps(31.76))
+print("3)")
+print(json.dumps(["apple", "banana"]))
+print(json.dumps(100))
 print(json.dumps(True))
-print(json.dumps(False))
-print(json.dumps(None)) 
-
-import json
-
-x = {
-  "name": "John",
-  "age": 30,
-  "married": True,
-  "divorced": False,
-  "children": ("Ann","Billy"),
-  "pets": None,
-  "cars": [
-    {"model": "BMW 230", "mpg": 27.5},
-    {"model": "Ford Edge", "mpg": 24.1}
-  ]
-}
-
-print(json.dumps(x))
