@@ -1,0 +1,5 @@
+n = int(input())
+a = list(map(int, input().split()))
+mn = min(a)
+mx = max(a)
+print(*[mn if x == mx else x for x in a])
