@@ -1,0 +1,5 @@
+host = "localhost"
+dbname = "phonebook_db"
+user = "postgres"
+password = "Aktausila"
+port = "5432"
