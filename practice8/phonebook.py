@@ -1,165 +1,167 @@
 import psycopg2
-from config import load_config
+import csv
+import os
+from connect import connect
 
-def create_table():
-    """Create the phonebook table if it doesn't exist."""
-    commands = (
-        """
-        CREATE TABLE IF NOT EXISTS phonebook (
-        id SERIAL PRIMARY KEY,
-        username VARCHAR(50) UNIQUE NOT NULL,
-        phone VARCHAR(20) NOT NULL
-        );
-        """
-    )
-    conn = None
-    try:
-        config = load_config()
-        conn = psycopg2.connect(**config)
-        cur = conn.cursor()
-        cur.execute(commands)
+# --- ФУНКЦИИ (Practice 7 & 8) ---
+
+def import_from_csv(filename):
+    # Проверяем, существует ли файл перед открытием
+    if not os.path.exists(filename):
+        print(f"❌ Ошибка: Файл не найден по пути: {filename}")
+        return
+
+    with open(filename, 'r', encoding='utf-8') as f:
+        reader = csv.reader(f)
+        try:
+            next(reader) # Пропускаем заголовок
+        except StopIteration:
+            print("Файл пуст.")
+            return
+            
+        with connect() as conn:
+            with conn.cursor() as cur:
+                for row in reader:
+                    if len(row) == 2:
+                        # Используем ON CONFLICT, чтобы не было ошибок при дубликатах
+                        cur.execute("""
+                            INSERT INTO contacts (name, phone) 
+                            VALUES (%s, %s) 
+                            ON CONFLICT (name) DO NOTHING
+                        """, row)
+            conn.commit()
+    print(f"✅ CSV успешно импортирован из: {filename}")
+
+def insert_console():
+    name = input("Имя: ")
+    phone = input("Телефон: ")
+    with connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute("INSERT INTO contacts (name, phone) VALUES (%s, %s)", (name, phone))
         conn.commit()
-        cur.close()
-        print("Table 'phonebook' is ready.")
-    except (psycopg2.DatabaseError, Exception) as error:
-        print(error)
-    finally:
-        if conn is not None:
-            conn.close()
+    print("Контакт добавлен.")
 
-def ups():
-    username = input("Enter username: ")
-    phone = input("Enter phone: ")
-    sql = """CALL upsert_u(%s, %s);"""
-    config = load_config()
+def update_old():
+    target = input("Кого обновить? ")
+    new_phone = input("Новый телефон: ")
+    with connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE contacts SET phone = %s WHERE name = %s", (new_phone, target))
+        conn.commit()
+    print("Данные обновлены.")
+
+def search_func():
+    pattern = input("Что искать? ")
+    with connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM get_contacts_by_pattern(%s)", (pattern,))
+            results = cur.fetchall()
+            for row in results: print(row)
+            if not results: print("Ничего не найдено.")
+
+def delete_old():
+    target = input("Кого удалить? ")
+    with connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM contacts WHERE name = %s", (target,))
+        conn.commit()
+    print("Удалено.")
+
+def get_pagination():
     try:
-        with  psycopg2.connect(**config) as conn:
-            with  conn.cursor() as cur:
-                # execute the INSERT statement
-                cur.execute(sql, (username, phone))
-
-            # commit the changes to the database
-            conn.commit()
-            print(f"User {username} upserted successfully.")
-    except (Exception, psycopg2.DatabaseError) as error:
-        print(error)
-
-def hz():
-    print("Enter list of usernames and list of phones")
-    print("Usernames: ", end="")
-    u = input().split()
-    print("Phones: ", end="")
-    p = input().split()
-    if len(u) != len(p):
-        print("Error: number of usernames and phones must match.")
-        return
-    sql = "CALL loophz(%s, %s)"
-    config = load_config()
-    try:
-        with  psycopg2.connect(**config) as conn:
-            conn.notices.clear()   # Clear any previous notices
+        limit = int(input("Лимит: "))
+        offset = int(input("Смещение (offset): "))
+        with connect() as conn:
             with conn.cursor() as cur:
-                cur.execute("CALL loophz(%s, %s)", (u, p))
-                conn.commit()
-                # Print any notices raised during the call
-                for notice in conn.notices:
-                    print(notice.strip())
+                cur.execute("SELECT * FROM get_contacts_paginated(%s, %s)", (limit, offset))
+                for row in cur.fetchall(): print(row)
+    except ValueError:
+        print("Введите числовые значения для лимита и смещения.")
 
-            # commit the changes to the database
-            conn.commit()
-            print(f"Lists inserted successfully.")
-    except (Exception, psycopg2.DatabaseError) as error:
-        print(error)
+# --- ПРОЦЕДУРЫ (Practice 8) ---
 
-def delete_contact():
-    print("Delete by (1) username or (2) phone? ")
-    choice = input().strip()
+def upsert_proc():
+    name = input("Имя: ")
+    phone = input("Телефон: ")
+    with connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute("CALL upsert_contact(%s, %s)", (name, phone))
+            # Вывод уведомлений от БД (если номер не валиден)
+            if conn.notices:
+                for notice in conn.notices: print(notice.strip())
+        conn.commit()
+    print("Процедура Upsert завершена.")
+
+def bulk_insert_proc():
+    names = input("Имена через запятую: ").split(',')
+    phones = input("Телефоны через запятую: ").split(',')
+    # Убираем лишние пробелы по краям
+    names = [n.strip() for n in names]
+    phones = [p.strip() for p in phones]
     
-    if choice == "1":
-        username = input("Enter username: ").strip()
-        sql = "CALL del_user(%s)"
-        param = (username,)
-    elif choice == "2":
-        phone = input("Enter phone: ").strip()
-        sql = "CALL del_user(%s)"
-        param = (phone,)
-    else:
-        print("Invalid choice.")
-        return
+    with connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute("CALL bulk_insert_contacts(%s, %s)", (names, phones))
+            # Вывод уведомлений от БД (если буквы в номере или длина мала)
+            if conn.notices:
+                for notice in conn.notices: print(notice.strip())
+        conn.commit()
+    print("Массовая вставка завершена.")
 
-    config = load_config()
-    try:
-        with psycopg2.connect(**config) as conn:
-            with conn.cursor() as cur:
-                cur.execute(sql, param)
-                conn.commit()
-                print(f"User deleted succesfully.")
-    except (Exception, psycopg2.DatabaseError) as error:
-        print(error)
+def delete_proc():
+    target = input("Имя или телефон для удаления: ")
+    with connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute("CALL delete_contact(%s)", (target,))
+        conn.commit()
+    print("Процедура удаления выполнена.")
 
-def match_return():
-    print("Write the username or phone part that you want to match.")
-    a = input()
-    sql = "SELECT * FROM records(%s)"
-    config = load_config()
-    try:
-        with psycopg2.connect(**config) as conn:
-            with conn.cursor() as cur:
-                cur.execute(sql, (a,))
-                rows = cur.fetchall()
-                if rows:
-                    for row in rows:
-                        print(f"ID: {row[0]}, Name: {row[1]}, Phone: {row[2]}")
-                else:
-                    print("No matching contacts.")
-    except (Exception, psycopg2.DatabaseError) as error:
-        print(error)
+def show_all():
+    with connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM contacts ORDER BY id")
+            for row in cur.fetchall(): print(row)
 
-def pages():
-    print("Write the limit of the returned query and how much offset you want it to be.")
-    lim = int(input())
-    offs = int(input())
-    sql = "SELECT * FROM pagination(%s, %s)"
-    config = load_config()
-    try:
-        with psycopg2.connect(**config) as conn:
-            with conn.cursor() as cur:
-                cur.execute(sql, (lim, offs))
-                rows = cur.fetchall()
-                if rows:
-                    for row in rows:
-                        print(f"ID: {row[0]}, Name: {row[1]}, Phone: {row[2]}")
-    except (Exception, psycopg2.DatabaseError) as error:
-        print(error)
+# --- ГЛАВНОЕ МЕНЮ ---
 
 def main():
-    while True:
-        print("1. Create table\n2. upsert user\n3.Insert list of users and their phones \n4. delete contact \n5. Return matching records\n6. Paginated data\n7. Exit")
-        try:
-            a = int(input())
-            if a == 1: create_table()
-            elif a == 2: ups()
-            elif a == 3: hz()
-            elif a == 4: delete_contact()
-            elif a == 5: match_return()
-            elif a == 6: pages()
-            elif a == 7: 
-                return
-            else: 
-                print("Try again!")
-                continue
-        except ValueError:
-            print("Please enter a number.")
-        print("Would you like to continue? y/n")
-        while (True):
-            a = input()
-            if (a == "y"):
-                break
-            elif (a == "n"): 
-                print("Bye!")
-                return
-            else:
-                print("Try again!")
-        
+    # ПУТЬ ДЛЯ ДАМИРА
+    csv_full_path = r'C:\Users\Дамир\OneDrive\Рабочий стол\PP2\practice8\contacts.csv'
 
-main()
+    while True:
+        print("\n" + "="*30)
+        print("МЕНЮ (Дамир)")
+        print("1. Insert CSV")
+        print("2. Insert console")
+        print("3. Update (old)")
+        print("4. Search (function)")
+        print("5. Delete (old)")
+        print("6. Exit")
+        print("7. Pagination")
+        print("8. Insert/Update (procedure)")
+        print("9. Bulk insert")
+        print("10. Delete (procedure)")
+        print("11. Show all contacts")
+        print("="*30)
+        
+        choice = input("Choose (1-11): ")
+        
+        try:
+            if choice == "1": 
+                import_from_csv(csv_full_path)
+            elif choice == "2": insert_console()
+            elif choice == "3": update_old()
+            elif choice == "4": search_func()
+            elif choice == "5": delete_old()
+            elif choice == "6": break
+            elif choice == "7": get_pagination()
+            elif choice == "8": upsert_proc()
+            elif choice == "9": bulk_insert_proc()
+            elif choice == "10": delete_proc()
+            elif choice == "11": show_all()
+            else: print("Неверный выбор.")
+        except Exception as e:
+            print(f"Произошла ошибка: {e}")
+
+if __name__ == "__main__":
+    main()

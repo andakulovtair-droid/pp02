@@ -1,24 +1,16 @@
--- A function that returns all records matching a pattern (part of name, surname, or phone number)
-
-CREATE OR REPLACE FUNCTION records(p text)
-RETURNS TABLE(out_id INTEGER, out_name VARCHAR, out_phone VARCHAR) AS $$
+-- Функция 1: Поиск по части имени или номера (Pattern Search)
+CREATE OR REPLACE FUNCTION get_contacts_by_pattern(p_pattern TEXT)
+RETURNS TABLE(name VARCHAR, phone VARCHAR) AS $$
 BEGIN
-    RETURN QUERY
-        SELECT id, username, phone FROM phonebook 
-        WHERE username ILIKE '%' || p || '%'
-        OR phone ILIKE '%' || p || '%';
-END;
-$$ LANGUAGE plpgsql;
+    RETURN QUERY SELECT c.name, c.phone FROM contacts c
+    WHERE c.name ILIKE '%'  p_pattern  '%' 
+       OR c.phone ILIKE '%'  p_pattern  '%';
+END; $$ LANGUAGE plpgsql;
 
--- A function that queries data from the table with pagination (by LIMIT and OFFSET)
-
-CREATE OR REPLACE FUNCTION pagination(lim int, offs int)
-RETURNS TABLE(out_id INTEGER, out_name VARCHAR, out_phone VARCHAR) AS $$
+-- Функция 2: Пагинация (Paginated Query)
+CREATE OR REPLACE FUNCTION get_contacts_paginated(p_limit INT, p_offset INT)
+RETURNS TABLE(name VARCHAR, phone VARCHAR) AS $$
 BEGIN
-    RETURN QUERY
-        SELECT id, username, phone
-        FROM phonebook
-        ORDER BY username
-        LIMIT lim OFFSET offs;
-END;
-$$ LANGUAGE plpgsql;
+    RETURN QUERY SELECT c.name, c.phone FROM contacts c
+    ORDER BY c.name LIMIT p_limit OFFSET p_offset;
+END; $$ LANGUAGE plpgsql;

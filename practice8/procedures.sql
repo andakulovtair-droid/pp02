@@ -1,37 +1,35 @@
--- A procedure to insert a new user by name and phone; if the user already exists, update their phone
-CREATE OR REPLACE PROCEDURE upsert_u(p_name VARCHAR, p_phone VARCHAR)
+-- Процедура 1: Добавить или обновить один контакт (Upsert)
+CREATE OR REPLACE PROCEDURE upsert_contact(p_name VARCHAR, p_phone VARCHAR)
 LANGUAGE plpgsql AS $$
 BEGIN
-    INSERT INTO phonebook (username, phone)
-    VALUES (p_name, p_phone)
-    ON CONFLICT (username) -- usually the primary key column
-    DO UPDATE SET
-        phone = EXCLUDED.phone;
-END;
-$$;
+    -- Проверка: только цифры и длина >= 10
+    IF p_phone ~ '^[0-9]+$' AND length(p_phone) >= 10 THEN
+        INSERT INTO contacts (name, phone) VALUES (p_name, p_phone)
+        ON CONFLICT (name) DO UPDATE SET phone = EXCLUDED.phone;
+    ELSE
+        RAISE NOTICE 'Ошибка: Номер % содержит буквы или слишком короткий!', p_phone;
+    END IF;
+END; $$;
 
--- A procedure to insert many new users from a list of names and phones - use a loop and 
--- IF inside the procedure, validate phone correctness, and return all incorrect data
-CREATE OR REPLACE PROCEDURE loophz(p_user VARCHAR[], p_phone VARCHAR[])
+-- Процедура 2: Массовая вставка (Bulk Insert)
+CREATE OR REPLACE PROCEDURE bulk_insert_contacts(p_names TEXT[], p_phones TEXT[])
 LANGUAGE plpgsql AS $$
-BEGIN 
-    FOR i IN 1..array_length(p_user, 1) LOOP
-        IF p_phone[i] ~ '[a-zA-Z_!@#$%]' THEN 
-            RAISE NOTICE 'Number % is invalid.', p_phone[i];
-        ELSIF p_user[i] ~ '[0-9]' THEN
-            RAISE NOTICE 'Name % is invalid.', p_user[i];
+DECLARE i INTEGER;
+BEGIN
+    FOR i IN 1 .. array_upper(p_names, 1) LOOP
+        -- Проверка: только цифры и длина >= 10
+        IF p_phones[i] ~ '^[0-9]+$' AND length(p_phones[i]) >= 10 THEN
+            INSERT INTO contacts(name, phone) VALUES (p_names[i], p_phones[i])
+            ON CONFLICT (name) DO UPDATE SET phone = EXCLUDED.phone;
         ELSE
-            CALL upsert_u(p_user[i], p_phone[i]);
+            RAISE NOTICE 'Контакт % пропущен: номер % невалиден', p_names[i], p_phones[i];
         END IF;
     END LOOP;
-END;
-$$;
+END; $$;
 
--- A procedure to delete data from the table by username or phone
-CREATE OR REPLACE PROCEDURE del_user(p VARCHAR)
+-- Процедура 3: Удаление (Delete)
+CREATE OR REPLACE PROCEDURE delete_contact(p_identity TEXT)
 LANGUAGE plpgsql AS $$
 BEGIN
-    DELETE FROM phonebook 
-    WHERE username = p OR phone = p;
-END;
-$$;
+    DELETE FROM contacts WHERE name = p_identity OR phone = p_identity;
+END; $$;
