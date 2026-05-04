@@ -8,8 +8,7 @@ CENTER = (WIDTH // 2, HEIGHT // 2)
 RADIUS = 230
 
 BASE_DIR = os.path.dirname(__file__)
-img_path = os.path.join(BASE_DIR, "images", "mickey_hand.png")
-
+img_path = r"C:\Users\Дамир\OneDrive\Рабочий стол\PP2\practice9\mickeys_clock\images\mickey_hand.png"
 hand = pygame.image.load(img_path).convert_alpha()
 
 

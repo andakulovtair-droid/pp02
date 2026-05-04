@@ -1,0 +1,29 @@
+[
+  {
+    "name": "Adi",
+    "email": "adi@gmail.com",
+    "birthday": "2008-01-26",
+    "group": "Family",
+    "phones": [
+      {
+        "phone": "87759232935",
+        "type": "home"
+      },
+      {
+        "phone": "870000000",
+        "type": "mobile"
+      },
+      {
+        "phone": "000000000",
+        "type": "mobile"
+      }
+    ]
+  },
+  {
+    "name": "Sergey",
+    "email": "kimsergey@mail.ru",
+    "birthday": "2007-09-11",
+    "group": "Friend",
+    "phones": []
+  }
+]
